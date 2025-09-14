@@ -3,24 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Unique Random 30–200 (step 10)</title>
+    <title>Unique Random 30–200 — Scoring + Dark + Chart</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script crossorigin src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
   </head>
   <body class="bg-gradient-to-b from-zinc-50 to-white text-zinc-900 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-      const { useMemo, useState } = React;
+      const { useMemo, useState, useEffect } = React;
+      const { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } = Recharts;
 
       function makePool() {
         const arr = [];
         for (let n = 30; n <= 200; n += 10) arr.push(n);
         return arr;
       }
-
       function shuffle(a) {
         const arr = [...a];
         for (let i = arr.length - 1; i > 0; i--) {
@@ -30,14 +32,20 @@
         return arr;
       }
 
-      function UniqueRandomGame() {
+      function App() {
         const initialPool = useMemo(() => makePool(), []);
         const [available, setAvailable] = useState(() => shuffle(initialPool));
         const [drawn, setDrawn] = useState([]);
         const [current, setCurrent] = useState(null);
+        const [scores, setScores] = useState({});
+        const [scoredOrder, setScoredOrder] = useState([]);
+        const [dark, setDark] = useState(false);
+        const [finishedOnce, setFinishedOnce] = useState(false);
+
+        const canDrawNext = current === null || (current !== null && typeof scores[current] === 'number');
 
         const draw = () => {
-          if (available.length === 0) return;
+          if (available.length === 0 || !canDrawNext) return;
           const idx = Math.floor(Math.random() * available.length);
           const next = available[idx];
           const newAvail = [...available];
@@ -51,87 +59,190 @@
           setAvailable(shuffle(makePool()));
           setDrawn([]);
           setCurrent(null);
+          setScores({});
+          setScoredOrder([]);
+          setFinishedOnce(false);
         };
 
+        const setScoreFor = (n, val) => {
+          setScores(prev => {
+            const already = typeof prev[n] === 'number';
+            const next = { ...prev, [n]: val };
+            if (!already) setScoredOrder(o => [...o, n]);
+            return next;
+          });
+        };
+
+        const undoLastScore = () => {
+          if (scoredOrder.length === 0) return;
+          setScoredOrder(o => {
+            const copy = [...o];
+            const last = copy.pop();
+            setScores(prev => {
+              const p = { ...prev };
+              delete p[last];
+              return p;
+            });
+            setCurrent(last);
+            return copy;
+          });
+        };
+
+        const scoredEntries = Object.entries(scores);
+        const scoredCount = scoredEntries.length;
+        const scoreSum = scoredEntries.reduce((a, [,v]) => a + v, 0);
+        const avg = scoredCount ? (scoreSum / scoredCount) : 0;
+        const allDone = available.length === 0;
+
+        const chartData = Object.entries(scores)
+          .map(([k,v]) => ({ distance: Number(k), shots: v }))
+          .sort((a,b) => a.distance - b.distance);
+
+        useEffect(() => {
+          if (allDone && scoredCount > 0 && !finishedOnce) {
+            setFinishedOnce(true);
+            if (window.confetti) {
+              window.confetti({ particleCount: 160, spread: 70, origin: { y: 0.6 } });
+              setTimeout(() => {
+                window.confetti({ particleCount: 120, spread: 90, origin: { y: 0.7 } });
+              }, 400);
+            }
+          }
+        }, [allDone, scoredCount, finishedOnce]);
+
         return (
-          <div className="min-h-[60vh] w-full grid place-items-center p-6">
+          <div className={(dark ? 'dark ' : '') + "min-h-[60vh] w-full grid place-items-center p-6 bg-gradient-to-b from-zinc-50 to-white text-zinc-900 dark:from-zinc-900 dark:to-black dark:text-zinc-50"}>
             <div className="w-full max-w-3xl">
               <header className="mb-6 flex items-center justify-between">
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Unique Random (30–200, step 10)</h1>
-                <div className="text-sm opacity-70">Remaining: {available.length} / 18</div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setDark(d => !d)}
+                    className="text-xs px-2 py-1 rounded-xl border border-zinc-200 dark:border-zinc-700"
+                    aria-label="Toggle dark mode"
+                  >{dark ? 'Light' : 'Dark'}</button>
+                  <div className="text-sm opacity-70 flex items-center gap-3">
+                    <span>Remaining: {available.length} / 18</span>
+                    <span className="hidden sm:inline">|</span>
+                    <span>Scored: {scoredCount}</span>
+                    <span className="hidden sm:inline">|</span>
+                    <span>Avg: {scoredCount ? avg.toFixed(2) : "—"}</span>
+                  </div>
+                </div>
               </header>
 
               <div className="grid gap-6">
-                <div className="rounded-2xl border border-zinc-200 shadow-sm bg-white p-6 sm:p-8">
+                <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 shadow-sm bg-white dark:bg-zinc-900 p-6 sm:p-8">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="text-xs uppercase tracking-widest text-zinc-500">Current Draw</div>
+                    <div className="text-xs uppercase tracking-widest text-zinc-500 dark:text-zinc-400">Current Draw</div>
                     <div className="text-6xl sm:text-7xl font-extrabold tabular-nums leading-none">
                       {current === null ? "—" : current}
                     </div>
-                    <div className="flex gap-3 mt-2">
-                      <button
-                        onClick={draw}
-                        disabled={available.length === 0}
-                        className="px-4 py-2 rounded-2xl shadow-sm border border-zinc-200 hover:shadow md:active:scale-[.99] disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {available.length ? "Draw a Number" : "All Numbers Used"}
+                    <div className="flex gap-3 mt-2 flex-wrap justify-center">
+                      <button onClick={draw} disabled={available.length === 0 || !canDrawNext}
+                        className="px-4 py-2 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 hover:shadow md:active:scale-[.99] disabled:opacity-40 disabled:cursor-not-allowed">
+                        {available.length ? (canDrawNext ? "Draw a Number" : "Score it to continue") : "All Numbers Used"}
                       </button>
-                      <button
-                        onClick={reset}
-                        className="px-3 py-2 rounded-2xl shadow-sm border border-zinc-200 hover:shadow"
-                      >
-                        Reset
+                      <button onClick={reset} className="px-3 py-2 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 hover:shadow">Reset</button>
+                      <button onClick={undoLastScore} disabled={scoredOrder.length === 0}
+                        className="px-3 py-2 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-700 hover:shadow disabled:opacity-40 disabled:cursor-not-allowed">
+                        Undo last score
                       </button>
                     </div>
+
+                    {current !== null && (
+                      <div className="w-full mt-4">
+                        <div className="text-center text-sm text-zinc-600 dark:text-zinc-300 mb-2">Tap a score for <span className="font-semibold">{current}</span> (1–5)</div>
+                        <div className="flex items-center justify-center gap-2">
+                          {[1,2,3,4,5].map(v => {
+                            const chosen = scores[current] === v;
+                            return (
+                              <button key={v} onClick={() => setScoreFor(current, v)}
+                                className={`w-12 h-12 rounded-xl border text-lg font-semibold tabular-nums ${chosen ? 'bg-zinc-900 text-white dark:bg-zinc-50 dark:text-zinc-900' : 'bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700'} border-zinc-200 dark:border-zinc-700`}>
+                                {v}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {typeof scores[current] === 'number' && (
+                          <div className="text-center text-xs text-emerald-600 dark:text-emerald-400 mt-2">Saved score {scores[current]} for {current}.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="grid gap-3">
-                  <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+                  <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
                     <h2 className="font-semibold mb-3">Already Drawn</h2>
                     {drawn.length === 0 ? (
-                      <p className="text-sm text-zinc-600">Nothing yet — hit “Draw a Number”.</p>
+                      <p className="text-sm text-zinc-600 dark:text-zinc-300">Nothing yet — hit “Draw a Number”.</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        {drawn.map((n) => (
-                          <span key={n} className="px-3 py-1 rounded-xl text-sm border border-zinc-200 bg-zinc-50">
-                            {n}
-                          </span>
-                        ))}
+                        {drawn.map((n) => {
+                          const s = scores[n];
+                          return (
+                            <span key={n} className={`px-3 py-1 rounded-xl text-sm border ${typeof s==='number' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700' : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700'}`}>
+                              {n}{typeof s === 'number' ? ` · ${s}/5` : ''}
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </section>
 
-                  <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+                  <section className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
                     <h2 className="font-semibold mb-3">Still Available</h2>
                     {available.length === 0 ? (
-                      <p className="text-sm text-zinc-600">All done! Press Reset to start again.</p>
+                      <p className="text-sm text-zinc-600 dark:text-zinc-300">All done! Press Reset to start again.</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        {available
-                          .slice()
-                          .sort((a, b) => a - b)
-                          .map((n) => (
-                            <span key={n} className="px-3 py-1 rounded-xl text-sm border border-zinc-200">
-                              {n}
-                            </span>
-                          ))}
+                        {available.slice().sort((a,b)=>a-b).map((n) => (
+                          <span key={n} className="px-3 py-1 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 dark:bg-zinc-900">{n}</span>
+                        ))}
                       </div>
                     )}
                   </section>
                 </div>
 
-                <footer className="text-xs text-zinc-500 text-center mt-2">
-                  Tip: The pool is {makePool().join(", ")}
-                </footer>
+                {available.length === 0 && (
+                  <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-8 text-center">
+                    <div className="text-2xl sm:text-3xl font-semibold mb-3">All Numbers Drawn</div>
+                    <div className="text-5xl sm:text-6xl font-extrabold tabular-nums mb-2">{avg.toFixed(2)}</div>
+                    <div className="text-sm text-zinc-600 dark:text-zinc-300 mb-4">Average score across {scoredCount} items · Total: <span className="font-medium">{scoreSum}</span></div>
+
+                    <div className="w-full h-[320px] bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-700 p-3">
+                      {chartData.length ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="distance" label={{ value: 'Distance', position: 'insideBottom', dy: 10 }} />
+                            <YAxis domain={[1,5]} ticks={[1,2,3,4,5]} allowDecimals={false} label={{ value: 'Shots', angle: -90, position: 'insideLeft', dx: -10 }} />
+                            <Tooltip formatter={(v) => [v, 'Shots']} labelFormatter={(l) => `Distance ${l}`} />
+                            <ReferenceLine y={avg} strokeDasharray="4 4" label={{ value: `Avg ${avg.toFixed(2)}`, position: 'insideTopRight' }} />
+                            <Bar dataKey="shots" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="text-sm text-zinc-500 dark:text-zinc-400 h-full grid place-items-center">No scores to plot.</div>
+                      )}
+                    </div>
+
+                    {scoredCount !== 18 && (
+                      <div className="text-xs text-amber-600 dark:text-amber-400 mt-3">You haven't scored all items yet.</div>
+                    )}
+                  </div>
+                )}
+
+                <footer className="text-xs text-zinc-500 dark:text-zinc-400 text-center mt-2">Tip: The pool is {makePool().join(', ')}</footer>
               </div>
             </div>
           </div>
         );
       }
 
-      const root = ReactDOM.createRoot(document.getElementById("root"));
-      root.render(<UniqueRandomGame />);
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
     </script>
   </body>
 </html>
