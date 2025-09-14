@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unique Random 30–200 (step 10)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body class="bg-gradient-to-b from-zinc-50 to-white text-zinc-900 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useMemo, useState } = React;
+
+      function makePool() {
+        const arr = [];
+        for (let n = 30; n <= 200; n += 10) arr.push(n);
+        return arr;
+      }
+
+      function shuffle(a) {
+        const arr = [...a];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      function UniqueRandomGame() {
+        const initialPool = useMemo(() => makePool(), []);
+        const [available, setAvailable] = useState(() => shuffle(initialPool));
+        const [drawn, setDrawn] = useState([]);
+        const [current, setCurrent] = useState(null);
+
+        const draw = () => {
+          if (available.length === 0) return;
+          const idx = Math.floor(Math.random() * available.length);
+          const next = available[idx];
+          const newAvail = [...available];
+          newAvail.splice(idx, 1);
+          setAvailable(newAvail);
+          setDrawn([next, ...drawn]);
+          setCurrent(next);
+        };
+
+        const reset = () => {
+          setAvailable(shuffle(makePool()));
+          setDrawn([]);
+          setCurrent(null);
+        };
+
+        return (
+          <div className="min-h-[60vh] w-full grid place-items-center p-6">
+            <div className="w-full max-w-3xl">
+              <header className="mb-6 flex items-center justify-between">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Unique Random (30–200, step 10)</h1>
+                <div className="text-sm opacity-70">Remaining: {available.length} / 18</div>
+              </header>
+
+              <div className="grid gap-6">
+                <div className="rounded-2xl border border-zinc-200 shadow-sm bg-white p-6 sm:p-8">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="text-xs uppercase tracking-widest text-zinc-500">Current Draw</div>
+                    <div className="text-6xl sm:text-7xl font-extrabold tabular-nums leading-none">
+                      {current === null ? "—" : current}
+                    </div>
+                    <div className="flex gap-3 mt-2">
+                      <button
+                        onClick={draw}
+                        disabled={available.length === 0}
+                        className="px-4 py-2 rounded-2xl shadow-sm border border-zinc-200 hover:shadow md:active:scale-[.99] disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {available.length ? "Draw a Number" : "All Numbers Used"}
+                      </button>
+                      <button
+                        onClick={reset}
+                        className="px-3 py-2 rounded-2xl shadow-sm border border-zinc-200 hover:shadow"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+                    <h2 className="font-semibold mb-3">Already Drawn</h2>
+                    {drawn.length === 0 ? (
+                      <p className="text-sm text-zinc-600">Nothing yet — hit “Draw a Number”.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {drawn.map((n) => (
+                          <span key={n} className="px-3 py-1 rounded-xl text-sm border border-zinc-200 bg-zinc-50">
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+                    <h2 className="font-semibold mb-3">Still Available</h2>
+                    {available.length === 0 ? (
+                      <p className="text-sm text-zinc-600">All done! Press Reset to start again.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {available
+                          .slice()
+                          .sort((a, b) => a - b)
+                          .map((n) => (
+                            <span key={n} className="px-3 py-1 rounded-xl text-sm border border-zinc-200">
+                              {n}
+                            </span>
+                          ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+
+                <footer className="text-xs text-zinc-500 text-center mt-2">
+                  Tip: The pool is {makePool().join(", ")}
+                </footer>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<UniqueRandomGame />);
+    </script>
+  </body>
+</html>
